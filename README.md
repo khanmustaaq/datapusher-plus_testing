@@ -9,6 +9,5 @@ Key Features:
 - Detailed test reporting with markdown summaries and downloadable artifacts
 - Configurable test datasets and extensible file format support
 
-Built for CKAN developers, data engineers, and DevOps teams who need reliable automated validation of data ingestion pipelines. Includes comprehensive error handling, performance metrics, and detailed logging for troubleshooting extension issues.
+Includes error handling, performance metrics, and detailed logging for troubleshooting extension issues.
 
-Tech Stack: CKAN, Python, PostgreSQL, GitHub Actions, Docker
