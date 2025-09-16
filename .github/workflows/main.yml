@@ -579,6 +579,9 @@ jobs:
             cat /tmp/ckan_worker.log
             exit 1
           fi
+
+
+          
       - name: Test DataPusher Plus functionality - Local Files (HTTP Served)
         run: |
           set -eu
@@ -586,6 +589,9 @@ jobs:
           
           # Initialize results tracking
           echo "file_name,upload_status,resource_id,datapusher_status,datastore_active,rows_imported,processing_time,error_message" > /tmp/test_results.csv
+          
+          # Initialize skipped files tracking
+          echo "file_name,reason_skipped" > /tmp/skipped_files.csv
           
           # Set base path for test files
           TEST_FILES_DIR="${GITHUB_WORKSPACE}/tests/static"
@@ -600,6 +606,15 @@ jobs:
           echo "Using test files from: $TEST_FILES_DIR"
           echo "Available test files:"
           find "$TEST_FILES_DIR" -type f | head -10
+          echo ""
+          
+          # Get complete inventory of all files in tests/static
+          echo "Complete inventory of files in tests/static:"
+          find "$TEST_FILES_DIR" -type f -name "*" | while read filepath; do
+            filename=$(basename "$filepath")
+            filesize=$(du -h "$filepath" | cut -f1)
+            echo "  $filename ($filesize)"
+          done
           echo ""
           
           # Start a simple HTTP server to serve test files
@@ -620,46 +635,50 @@ jobs:
           fi
           
           echo "HTTP server running at http://localhost:8080/"
-          echo "Available files via HTTP:"
-          curl -s "http://localhost:8080/" | grep -o 'href="[^"]*"' | cut -d'"' -f2 | grep -v '^[?.]'
           echo ""
           
-          # Auto-discover files and create test list
-          echo "Auto-discovering files in $TEST_FILES_DIR..."
+          # Create comprehensive file discovery (include ALL files, not just first N)
+          echo "Discovering ALL files in $TEST_FILES_DIR for testing..."
           : > /tmp/test_files.txt  # Clear the file
           
-          # Find CSV files
-          find "$TEST_FILES_DIR" -name "*.csv" -type f | head -5 | while read filepath; do
+          # Process ALL files in the directory, categorizing them
+          find "$TEST_FILES_DIR" -type f -name "*" | while read filepath; do
             filename=$(basename "$filepath")
             name=$(echo "$filename" | sed 's/\.[^.]*$//')  # Remove extension
-            echo "$name|http://localhost:8080/$filename|CSV|text/csv|Auto-discovered CSV file: $filename" >> /tmp/test_files.txt
-          done
-          
-          # Find TSV files
-          find "$TEST_FILES_DIR" -name "*.tsv" -type f | head -3 | while read filepath; do
-            filename=$(basename "$filepath")
-            name=$(echo "$filename" | sed 's/\.[^.]*$//')
-            echo "$name|http://localhost:8080/$filename|TSV|text/tab-separated-values|Auto-discovered TSV file: $filename" >> /tmp/test_files.txt
-          done
-          
-          # Find Excel files
-          find "$TEST_FILES_DIR" -name "*.xlsx" -type f | head -3 | while read filepath; do
-            filename=$(basename "$filepath")
-            name=$(echo "$filename" | sed 's/\.[^.]*$//')
-            echo "$name|http://localhost:8080/$filename|XLSX|application/vnd.openxmlformats-officedocument.spreadsheetml.sheet|Auto-discovered Excel file: $filename" >> /tmp/test_files.txt
-          done
-          
-          # Find JSON files
-          find "$TEST_FILES_DIR" -name "*.json" -type f | head -2 | while read filepath; do
-            filename=$(basename "$filepath")
-            name=$(echo "$filename" | sed 's/\.[^.]*$//')
-            echo "$name|http://localhost:8080/$filename|JSON|application/json|Auto-discovered JSON file: $filename" >> /tmp/test_files.txt
+            extension=$(echo "$filename" | sed 's/.*\.//' | tr '[:upper:]' '[:lower:]')
+            
+            # Categorize by file extension
+            case "$extension" in
+              csv)
+                echo "$name|http://localhost:8080/$filename|CSV|text/csv|CSV file: $filename" >> /tmp/test_files.txt
+                ;;
+              tsv)
+                echo "$name|http://localhost:8080/$filename|TSV|text/tab-separated-values|TSV file: $filename" >> /tmp/test_files.txt
+                ;;
+              xlsx|xls)
+                echo "$name|http://localhost:8080/$filename|XLSX|application/vnd.openxmlformats-officedocument.spreadsheetml.sheet|Excel file: $filename" >> /tmp/test_files.txt
+                ;;
+              json)
+                echo "$name|http://localhost:8080/$filename|JSON|application/json|JSON file: $filename" >> /tmp/test_files.txt
+                ;;
+              geojson)
+                echo "$name|http://localhost:8080/$filename|GEOJSON|application/geo+json|GeoJSON file: $filename" >> /tmp/test_files.txt
+                ;;
+              txt)
+                echo "$name|http://localhost:8080/$filename|TXT|text/plain|Text file: $filename" >> /tmp/test_files.txt
+                ;;
+              *)
+                # Log unsupported file types as skipped
+                echo "$filename,Unsupported file format: .$extension" >> /tmp/skipped_files.csv
+                echo "SKIP: Unsupported format .$extension for file: $filename"
+                ;;
+            esac
           done
           
           # Check if we have any test files
           if [ ! -s /tmp/test_files.txt ]; then
-            echo "ERROR: No test files found in $TEST_FILES_DIR"
-            echo "Please add some data files (.csv, .tsv, .xlsx, .json) to the tests/static directory"
+            echo "ERROR: No supported test files found in $TEST_FILES_DIR"
+            echo "Supported formats: .csv, .tsv, .xlsx, .xls, .json, .geojson, .txt"
             kill $HTTP_SERVER_PID 2>/dev/null || true
             exit 1
           fi
@@ -667,6 +686,12 @@ jobs:
           echo "Test files to process:"
           cat /tmp/test_files.txt
           echo ""
+          
+          if [ -f /tmp/skipped_files.csv ] && [ $(wc -l < /tmp/skipped_files.csv) -gt 1 ]; then
+            echo "Files that will be skipped:"
+            tail -n +2 /tmp/skipped_files.csv
+            echo ""
+          fi
           
           # Create test dataset once
           echo "Creating test dataset for DataPusher Plus..."
@@ -684,6 +709,7 @@ jobs:
           total_files=0
           passed_files=0
           failed_files=0
+          skipped_files=0
           
           # Process each test file
           while IFS='|' read -r file_name file_url file_format file_mimetype file_desc || [ -n "$file_name" ]; do
@@ -697,6 +723,9 @@ jobs:
             # Test if URL is accessible
             if ! curl -s --head "$file_url" > /dev/null; then
               echo "SKIP: File not accessible via HTTP: $file_url"
+              filename_from_url=$(basename "$file_url")
+              echo "$filename_from_url,File not accessible via HTTP" >> /tmp/skipped_files.csv
+              skipped_files=$((skipped_files + 1))
               continue
             fi
             
@@ -813,10 +842,6 @@ jobs:
                         rows_imported="0"
                       fi
                       echo "  ✓ Rows imported for $file_name: $rows_imported"
-                      
-                      # Show sample data for verification
-                      echo "  Sample data preview:"
-                      echo "$datastore_data" | grep -o '"records"[[:space:]]*:[[:space:]]*\[[^]]*\]' | head -1
                     fi
                   else
                     datastore_active="false"
@@ -863,16 +888,24 @@ jobs:
           kill $HTTP_SERVER_PID 2>/dev/null || true
           wait $HTTP_SERVER_PID 2>/dev/null || true
           
+          # Count skipped files from CSV
+          if [ -f /tmp/skipped_files.csv ]; then
+            skipped_count=$(tail -n +2 /tmp/skipped_files.csv | wc -l)
+            skipped_files=$skipped_count
+          fi
+          
           echo ""
           echo "=========================================="
           echo "=== FINAL TEST RESULTS SUMMARY ==="
           echo "=========================================="
-          echo "Total files tested: $total_files"
+          echo "Total files in directory: $((total_files + skipped_files))"
+          echo "Files tested: $total_files"
+          echo "Files skipped: $skipped_files"
           echo "Passed: $passed_files"
           echo "Failed: $failed_files"
           
           if [ $total_files -gt 0 ]; then
-            echo "Success rate: $(( passed_files * 100 / total_files ))%"
+            echo "Success rate (of tested files): $(( passed_files * 100 / total_files ))%"
           else
             echo "No files were tested"
           fi
@@ -883,68 +916,41 @@ jobs:
           cat /tmp/test_results.csv
           echo ""
           
-          # Generate summary by status
-          echo "=== Summary by Status ==="
-          if [ -f /tmp/test_results.csv ]; then
-            echo "Successful uploads:"
-            if grep -q ",SUCCESS," /tmp/test_results.csv; then
-              grep ",SUCCESS," /tmp/test_results.csv | cut -d',' -f1 | while read file; do
-                echo "  ✓ $file"
-              done
-            else
-              echo "  (none)"
-            fi
-            
-            echo "Failed uploads:"
-            if grep -q ",FAILED," /tmp/test_results.csv; then  
-              grep ",FAILED," /tmp/test_results.csv | cut -d',' -f1 | while read file; do
-                echo "  ✗ $file"
-              done
-            else
-              echo "  (none)"
-            fi
-            
-            echo "DataPusher errors:"
-            if grep -q ",error," /tmp/test_results.csv; then
-              grep ",error," /tmp/test_results.csv | cut -d',' -f1,8 | while IFS=',' read file error; do
-                echo "  ⚠ $file: $error"
-              done
-            else
-              echo "  (none)"
-            fi
+          if [ $skipped_files -gt 0 ]; then
+            echo "=== Skipped Files ==="
+            echo "Skipped files saved to: /tmp/skipped_files.csv"
+            cat /tmp/skipped_files.csv
+            echo ""
           fi
           
           # Determine overall result
-          if [ $total_files -eq 0 ]; then
+          if [ $total_files -eq 0 ] && [ $skipped_files -gt 0 ]; then
+            echo ""
+            echo "⚠ OVERALL RESULT: NO TESTABLE FILES"
+            echo "All files in directory were skipped - check file formats and accessibility"
+          elif [ $total_files -eq 0 ]; then
             echo ""
             echo "⚠ OVERALL RESULT: NO FILES TESTED"
             echo "No test files found in $TEST_FILES_DIR"
           elif [ $failed_files -eq 0 ] && [ $passed_files -gt 0 ]; then
             echo ""
-            echo "🎉 OVERALL RESULT: ALL TESTS PASSED"
-            echo "DataPusher Plus is working correctly with all local test files"
+            echo "🎉 OVERALL RESULT: ALL TESTED FILES PASSED"
+            echo "DataPusher Plus is working correctly with all testable local files"
           elif [ $passed_files -gt 0 ]; then
             echo ""
             echo "⚠ OVERALL RESULT: PARTIAL SUCCESS"
             echo "DataPusher Plus works with some local files but has issues with others"
           else
             echo ""
-            echo "❌ OVERALL RESULT: ALL TESTS FAILED"
+            echo "❌ OVERALL RESULT: ALL TESTED FILES FAILED"
             echo "DataPusher Plus is not working correctly with local files"
           fi
           
           echo ""
           echo "Test completed at: $(date)"
-      - name: Upload test results as artifact
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: datapusher-plus-test-results
-          path: |
-            /tmp/test_results.csv
-            /tmp/ckan_stdout.log
-            /tmp/ckan_worker.log
-          retention-days: 3
+
+
+          
 
       - name: Generate Test Results Summary
         if: always()
@@ -962,7 +968,16 @@ jobs:
           total_lines=$(wc -l < /tmp/test_results.csv)
           total_tests=$((total_lines - 1))  # Subtract header line
           
-          if [ $total_tests -le 0 ]; then
+          # Count skipped files
+          skipped_count=0
+          if [ -f /tmp/skipped_files.csv ]; then
+            skipped_lines=$(wc -l < /tmp/skipped_files.csv)
+            skipped_count=$((skipped_lines - 1))  # Subtract header line
+          fi
+          
+          total_files_in_dir=$((total_tests + skipped_count))
+          
+          if [ $total_tests -le 0 ] && [ $skipped_count -le 0 ]; then
             echo "No test results to summarize"
             exit 0
           fi
@@ -972,11 +987,17 @@ jobs:
           failed=$(grep -c ",FAILED," /tmp/test_results.csv || echo "0")
           error_count=$(grep -c ",error," /tmp/test_results.csv || echo "0")
           
-          # Calculate success rate
+          # Calculate success rates
           if [ $total_tests -gt 0 ]; then
-            success_rate=$(( passed * 100 / total_tests ))
+            tested_success_rate=$(( passed * 100 / total_tests ))
           else
-            success_rate=0
+            tested_success_rate=0
+          fi
+          
+          if [ $total_files_in_dir -gt 0 ]; then
+            overall_success_rate=$(( passed * 100 / total_files_in_dir ))
+          else
+            overall_success_rate=0
           fi
           
           # Start building the summary
@@ -987,50 +1008,102 @@ jobs:
             echo ""
             echo "| Metric | Value |"
             echo "|--------|-------|"
-            echo "| Total Tests | $total_tests |"
+            echo "| Total Files in Directory | $total_files_in_dir |"
+            echo "| Files Tested | $total_tests |"
+            echo "| Files Skipped | $skipped_count |"
             echo "| Passed | $passed |"
             echo "| Failed | $failed |"
             echo "| Errors | $error_count |"
-            echo "| Success Rate | ${success_rate}% |"
+            echo "| Success Rate (Tested Files) | ${tested_success_rate}% |"
+            echo "| Success Rate (All Files) | ${overall_success_rate}% |"
             echo ""
-            echo "## Detailed Results"
-            echo ""
-            echo "| File Name | Upload Status | DataPusher Status | DataStore Active | Rows Imported | Processing Time (s) | Error Message |"
-            echo "|-----------|---------------|-------------------|------------------|---------------|---------------------|---------------|"
             
-            # Process CSV and create table rows (skip header, exclude resource_id column)
-            tail -n +2 /tmp/test_results.csv | while IFS=',' read -r file_name upload_status resource_id datapusher_status datastore_active rows_imported processing_time error_message; do
-              # Clean up error message (remove quotes and truncate if too long)
-              clean_error=$(echo "$error_message" | sed 's/^"//;s/"$//' | cut -c1-50)
-              if [ ${#error_message} -gt 52 ]; then
-                clean_error="${clean_error}..."
+            # Show skipped files section if any exist
+            if [ $skipped_count -gt 0 ]; then
+              echo "## Skipped Files"
+              echo ""
+              echo "| File Name | Reason Skipped |"
+              echo "|-----------|----------------|"
+              
+              if [ -f /tmp/skipped_files.csv ]; then
+                tail -n +2 /tmp/skipped_files.csv | while IFS=',' read -r file_name reason; do
+                  echo "| $file_name | $reason |"
+                done
+              fi
+              echo ""
+            fi
+            
+            # Show detailed results only if we have tested files
+            if [ $total_tests -gt 0 ]; then
+              echo "## Detailed Test Results"
+              echo ""
+              echo "| File Name | Upload Status | DataPusher Status | DataStore Active | Rows Imported | Processing Time (s) | Error Message |"
+              echo "|-----------|---------------|-------------------|------------------|---------------|---------------------|---------------|"
+              
+              # Process CSV and create table rows (skip header, exclude resource_id column)
+              tail -n +2 /tmp/test_results.csv | while IFS=',' read -r file_name upload_status resource_id datapusher_status datastore_active rows_imported processing_time error_message; do
+                # Clean up error message (remove quotes and truncate if too long)
+                clean_error=$(echo "$error_message" | sed 's/^"//;s/"$//' | cut -c1-50)
+                if [ ${#error_message} -gt 52 ]; then
+                  clean_error="${clean_error}..."
+                fi
+                
+                # Add status icons
+                case "$upload_status" in
+                  "SUCCESS") upload_icon="✅" ;;
+                  *) upload_icon="❌" ;;
+                esac
+                
+                case "$datapusher_status" in
+                  "complete") dp_icon="✅" ;;
+                  "error") dp_icon="❌" ;;
+                  *) dp_icon="⏳" ;;
+                esac
+                
+                case "$datastore_active" in
+                  "true") ds_icon="✅" ;;
+                  *) ds_icon="❌" ;;
+                esac
+                
+                echo "| $file_name | $upload_icon $upload_status | $dp_icon $datapusher_status | $ds_icon $datastore_active | $rows_imported | $processing_time | $clean_error |"
+              done
+              echo ""
+            fi
+            
+            echo "## Status Legend"
+            echo ""
+            echo "- ✅ Success/True/Complete"
+            echo "- ❌ Failed/False/Error" 
+            echo "- ⏳ Pending/Unknown"
+            echo ""
+            
+            # Add comprehensive analysis based on results
+            if [ $total_tests -eq 0 ] && [ $skipped_count -gt 0 ]; then
+              echo "## Result: No Testable Files ⚠️"
+              echo ""
+              echo "All files in the tests/static directory were skipped."
+              echo ""
+              echo "**Common reasons for skipped files:**"
+              echo "- Unsupported file formats (only .csv, .tsv, .xlsx, .json, .geojson, .txt supported)"
+              echo "- Files not accessible via HTTP server"
+              echo "- Hidden files or system files"
+              echo ""
+              echo "**Recommendation:** Add supported data files to tests/static directory."
+              
+            elif [ $total_tests -eq 0 ]; then
+              echo "## Result: No Files Found ❌"
+              echo ""
+              echo "No files found in tests/static directory to test."
+              
+            elif [ $passed -eq $total_tests ]; then
+              echo "## Result: All Tested Files Passed! 🎉"
+              echo ""
+              echo "DataPusher Plus is working correctly with all testable files."
+              if [ $skipped_count -gt 0 ]; then
+                echo ""
+                echo "**Note:** $skipped_count file(s) were skipped. See the Skipped Files section above for details."
               fi
               
-              # Add status icons
-              case "$upload_status" in
-                "SUCCESS") upload_icon="✅" ;;
-                *) upload_icon="❌" ;;
-              esac
-              
-              case "$datapusher_status" in
-                "complete") dp_icon="✅" ;;
-                "error") dp_icon="❌" ;;
-                *) dp_icon="⏳" ;;
-              esac
-              
-              case "$datastore_active" in
-                "true") ds_icon="✅" ;;
-                *) ds_icon="❌" ;;
-              esac
-              
-              echo "| $file_name | $upload_icon $upload_status | $dp_icon $datapusher_status | $ds_icon $datastore_active | $rows_imported | $processing_time | $clean_error |"
-            done
-            
-            # Add recommendations based on results
-            if [ $passed -eq $total_tests ]; then
-              echo "## Result: All Tests Passed! 🎉"
-              echo ""
-              echo "DataPusher Plus is working correctly with all test files."
             elif [ $passed -gt 0 ]; then
               echo "## Result: Partial Success ⚠️"
               echo ""
@@ -1044,15 +1117,67 @@ jobs:
                   echo "- **$file_name**: $clean_error"
                 fi
               done
+              
+              if [ $skipped_count -gt 0 ]; then
+                echo ""
+                echo "### Additionally Skipped:"
+                if [ -f /tmp/skipped_files.csv ]; then
+                  tail -n +2 /tmp/skipped_files.csv | while IFS=',' read -r file_name reason; do
+                    echo "- **$file_name**: $reason"
+                  done
+                fi
+              fi
+              
             else
-              echo "## Result: All Tests Failed ❌"
+              echo "## Result: All Tested Files Failed ❌"
               echo ""
-              echo "DataPusher Plus is not working correctly. Check the logs for details."
+              echo "DataPusher Plus is not working correctly with any tested files."
+              echo ""
+              echo "### All Failed Files:"
+              tail -n +2 /tmp/test_results.csv | while IFS=',' read -r file_name upload_status resource_id datapusher_status datastore_active rows_imported processing_time error_message; do
+                clean_error=$(echo "$error_message" | sed 's/^"//;s/"$//')
+                echo "- **$file_name**: $clean_error"
+              done
+              
+              if [ $skipped_count -gt 0 ]; then
+                echo ""
+                echo "### Files Not Even Attempted:"
+                if [ -f /tmp/skipped_files.csv ]; then
+                  tail -n +2 /tmp/skipped_files.csv | while IFS=',' read -r file_name reason; do
+                    echo "- **$file_name**: $reason"
+                  done
+                fi
+              fi
+            fi
+            
+            # Add troubleshooting section for failed cases
+            if [ $failed -gt 0 ] || [ $error_count -gt 0 ]; then
+              echo ""
+              echo "## Troubleshooting Tips"
+              echo ""
+              echo "**For upload failures:**"
+              echo "- Check CKAN API connectivity and authentication"
+              echo "- Verify dataset exists and user has permissions"
+              echo "- Check file accessibility via HTTP server"
+              echo ""
+              echo "**For DataPusher processing errors:**"
+              echo "- Check file format and data quality"
+              echo "- Verify DataPusher Plus configuration"
+              echo "- Check worker logs for detailed error messages"
+              echo "- Ensure qsv binary is properly installed"
+              echo ""
+              echo "**For DataStore activation issues:**"
+              echo "- Verify datastore extension is enabled"
+              echo "- Check database permissions"
+              echo "- Review DataPusher Plus processing logs"
             fi
             
             echo ""
             echo "---"
             echo "_Generated on $(date)_"
+            echo ""
+            echo "**Files Location:** \`tests/static/\`"
+            echo "**Total Directory Size:** $(du -sh ${GITHUB_WORKSPACE}/tests/static 2>/dev/null | cut -f1 || echo 'Unknown')"
             
           } > /tmp/markdown_summary.md
           
@@ -1063,7 +1188,7 @@ jobs:
           echo ""
           echo "Preview of generated summary:"
           echo "=================================="
-          cat /tmp/markdown_summary.md      
+          cat /tmp/markdown_summary.md
           
       - name: Cleanup
         if: always()
