@@ -1,4 +1,4 @@
-# datapusher_plus-testing
+# DataPusher+ testing
 Automated testing suite for CKAN DataPusher Plus extension functionality. This repository provides a complete CI/CD pipeline using GitHub Actions to validate data processing workflows across multiple file formats including CSV, TSV, Excel, and JSON files.
 
 Key Features:
