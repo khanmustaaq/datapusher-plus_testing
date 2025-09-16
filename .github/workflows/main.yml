@@ -1025,14 +1025,6 @@ jobs:
               echo "| $file_name | $upload_icon $upload_status | $dp_icon $datapusher_status | $ds_icon $datastore_active | $rows_imported | $processing_time | $clean_error |"
             done
             
-            echo ""
-            echo "## Status Legend"
-            echo ""
-            echo "- ✅ Success/True/Complete"
-            echo "- ❌ Failed/False/Error" 
-            echo "- ⏳ Pending/Unknown"
-            echo ""
-            
             # Add recommendations based on results
             if [ $passed -eq $total_tests ]; then
               echo "## Result: All Tests Passed! 🎉"
