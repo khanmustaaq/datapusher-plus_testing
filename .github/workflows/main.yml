@@ -949,6 +949,300 @@ jobs:
           echo ""
           echo "Test completed at: $(date)"
 
+      - name: Analyze DataPusher Plus Worker Logs
+        if: always()
+        run: |
+          set -eu
+          echo "=== Analyzing DataPusher Plus Worker Logs ==="
+          
+          # Check if worker log exists
+          if [ ! -f /tmp/ckan_worker.log ]; then
+            echo "No worker log file found at /tmp/ckan_worker.log"
+            echo "job_id,file_name,status,total_time,download_time,analysis_time,copying_time,indexing_time,formulae_time,metadata_time,records_processed,error_type,error_message" > /tmp/worker_analysis.csv
+            exit 0
+          fi
+          
+          echo "Worker log file size: $(du -h /tmp/ckan_worker.log | cut -f1)"
+          echo "Extracting processing information from worker logs..."
+          
+          # Initialize analysis CSV
+          echo "job_id,file_name,status,total_time,download_time,analysis_time,copying_time,indexing_time,formulae_time,metadata_time,records_processed,rows_copied,columns_indexed,error_type,error_message" > /tmp/worker_analysis.csv
+          
+          # Process the log file to extract job information
+          python3 << 'EOF'
+          import re
+          import csv
+          from datetime import datetime
+          
+          # Read the worker log
+          try:
+              with open('/tmp/ckan_worker.log', 'r') as f:
+                  log_content = f.read()
+          except:
+              print("Could not read worker log file")
+              exit(1)
+          
+          # Split log into individual job entries
+          job_entries = re.split(r'Setting log level to INFO', log_content)
+          
+          processed_jobs = []
+          
+          for entry in job_entries:
+              if not entry.strip():
+                  continue
+              
+              # Extract job ID
+              job_id_match = re.search(r'\[([a-f0-9-]{36})\]', entry)
+              job_id = job_id_match.group(1) if job_id_match else "unknown"
+              
+              # Extract file information
+              file_url_match = re.search(r'Fetching from: (.+)', entry)
+              file_url = file_url_match.group(1) if file_url_match else "unknown"
+              file_name = file_url.split('/')[-1] if file_url != "unknown" else "unknown"
+              
+              # Determine job status
+              if "DATAPUSHER+ JOB DONE!" in entry:
+                  status = "SUCCESS"
+              elif "Datapusher Plus error:" in entry:
+                  status = "ERROR"
+              else:
+                  status = "INCOMPLETE"
+              
+              # Extract timing information
+              timings = {
+                  'total_time': 0.0,
+                  'download_time': 0.0,
+                  'analysis_time': 0.0,
+                  'copying_time': 0.0,
+                  'indexing_time': 0.0,
+                  'formulae_time': 0.0,
+                  'metadata_time': 0.0
+              }
+              
+              # Parse timing breakdown
+              total_time_match = re.search(r'TOTAL ELAPSED TIME: ([\d.]+)', entry)
+              if total_time_match:
+                  timings['total_time'] = float(total_time_match.group(1))
+              
+              download_match = re.search(r'Download: ([\d.]+)', entry)
+              if download_match:
+                  timings['download_time'] = float(download_match.group(1))
+              
+              analysis_match = re.search(r'Analysis: ([\d.]+)', entry)
+              if analysis_match:
+                  timings['analysis_time'] = float(analysis_match.group(1))
+              
+              copying_match = re.search(r'COPYing: ([\d.]+)', entry)
+              if copying_match:
+                  timings['copying_time'] = float(copying_match.group(1))
+              
+              indexing_match = re.search(r'Indexing: ([\d.]+)', entry)
+              if indexing_match:
+                  timings['indexing_time'] = float(indexing_match.group(1))
+              
+              formulae_match = re.search(r'Formulae processing: ([\d.]+)', entry)
+              if formulae_match:
+                  timings['formulae_time'] = float(formulae_match.group(1))
+              
+              metadata_match = re.search(r'Resource metadata updates: ([\d.]+)', entry)
+              if metadata_match:
+                  timings['metadata_time'] = float(metadata_match.group(1))
+              
+              # Extract record information
+              records_match = re.search(r'(\d+)\s+records detected', entry)
+              records_processed = int(records_match.group(1)) if records_match else 0
+              
+              # Extract rows copied
+              rows_copied_match = re.search(r'Copied (\d+) rows to', entry)
+              rows_copied = int(rows_copied_match.group(1)) if rows_copied_match else 0
+              
+              # Extract columns indexed
+              indexed_match = re.search(r'Indexed (\d+) column/s', entry)
+              columns_indexed = int(indexed_match.group(1)) if indexed_match else 0
+              
+              # Extract error information
+              error_type = ""
+              error_message = ""
+              
+              if status == "ERROR":
+                  # Look for specific error types
+                  if "invalid Zip archive" in entry:
+                      error_type = "CORRUPTED_EXCEL"
+                      error_message = "Invalid Excel file - corrupted ZIP archive"
+                  elif "qsv command failed" in entry:
+                      error_type = "QSV_ERROR"
+                      error_message = "QSV processing failed"
+                  elif "Only http, https, and ftp resources may be fetched" in entry:
+                      error_type = "INVALID_URL"
+                      error_message = "Invalid URL protocol"
+                  else:
+                      error_type = "UNKNOWN_ERROR"
+                      # Extract error message
+                      error_match = re.search(r'Datapusher Plus error: (.+?)(?:, Traceback|\n)', entry, re.DOTALL)
+                      if error_match:
+                          error_message = error_match.group(1).strip()[:100]  # Limit length
+                      else:
+                          error_message = "Unknown error occurred"
+              
+              # Only process jobs that have meaningful data
+              if job_id != "unknown" or file_name != "unknown":
+                  processed_jobs.append({
+                      'job_id': job_id,
+                      'file_name': file_name,
+                      'status': status,
+                      'total_time': timings['total_time'],
+                      'download_time': timings['download_time'],
+                      'analysis_time': timings['analysis_time'],
+                      'copying_time': timings['copying_time'],
+                      'indexing_time': timings['indexing_time'],
+                      'formulae_time': timings['formulae_time'],
+                      'metadata_time': timings['metadata_time'],
+                      'records_processed': records_processed,
+                      'rows_copied': rows_copied,
+                      'columns_indexed': columns_indexed,
+                      'error_type': error_type,
+                      'error_message': error_message.replace('"', '""')  # Escape quotes for CSV
+                  })
+          
+          # Write to CSV
+          with open('/tmp/worker_analysis.csv', 'w', newline='') as csvfile:
+              if processed_jobs:
+                  fieldnames = processed_jobs[0].keys()
+                  writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                  writer.writeheader()
+                  writer.writerows(processed_jobs)
+              else:
+                  # Write empty structure if no jobs found
+                  writer = csv.writer(csvfile)
+                  writer.writerow(['job_id', 'file_name', 'status', 'total_time', 'download_time', 
+                                  'analysis_time', 'copying_time', 'indexing_time', 'formulae_time', 
+                                  'metadata_time', 'records_processed', 'rows_copied', 'columns_indexed',
+                                  'error_type', 'error_message'])
+          
+          print(f"Processed {len(processed_jobs)} job entries from worker logs")
+          EOF
+          
+          # Display analysis results
+          echo ""
+          echo "=== Worker Log Analysis Results ==="
+          if [ -f /tmp/worker_analysis.csv ]; then
+            echo "Analysis saved to: /tmp/worker_analysis.csv"
+            echo ""
+            echo "Summary of processed jobs:"
+            
+            # Count by status
+            total_jobs=$(tail -n +2 /tmp/worker_analysis.csv | wc -l)
+            success_jobs=$(grep -c ",SUCCESS," /tmp/worker_analysis.csv || echo "0")
+            error_jobs=$(grep -c ",ERROR," /tmp/worker_analysis.csv || echo "0")
+            incomplete_jobs=$(grep -c ",INCOMPLETE," /tmp/worker_analysis.csv || echo "0")
+            
+            echo "Total jobs: $total_jobs"
+            echo "Successful: $success_jobs"
+            echo "Errors: $error_jobs"
+            echo "Incomplete: $incomplete_jobs"
+            echo ""
+            
+            if [ $total_jobs -gt 0 ]; then
+              echo "=== Performance Analysis ==="
+              
+              # Calculate average processing times for successful jobs
+              if [ $success_jobs -gt 0 ]; then
+                echo "Average processing times for successful jobs:"
+                python3 << 'EOF'
+          import csv
+          import statistics
+          
+          times = {
+              'total': [],
+              'download': [],
+              'analysis': [],
+              'copying': [],
+              'indexing': [],
+              'formulae': [],
+              'metadata': []
+          }
+          
+          with open('/tmp/worker_analysis.csv', 'r') as f:
+              reader = csv.DictReader(f)
+              for row in reader:
+                  if row['status'] == 'SUCCESS':
+                      times['total'].append(float(row['total_time']))
+                      times['download'].append(float(row['download_time']))
+                      times['analysis'].append(float(row['analysis_time']))
+                      times['copying'].append(float(row['copying_time']))
+                      times['indexing'].append(float(row['indexing_time']))
+                      times['formulae'].append(float(row['formulae_time']))
+                      times['metadata'].append(float(row['metadata_time']))
+          
+          for phase, values in times.items():
+              if values:
+                  avg = statistics.mean(values)
+                  print(f"  {phase.capitalize()}: {avg:.2f}s")
+          EOF
+                echo ""
+              fi
+              
+              echo "=== Error Analysis ==="
+              if [ $error_jobs -gt 0 ]; then
+                echo "Error breakdown:"
+                grep ",ERROR," /tmp/worker_analysis.csv | cut -d',' -f14 | sort | uniq -c | while read count error_type; do
+                  echo "  $error_type: $count occurrences"
+                done
+                echo ""
+                
+                echo "Failed files:"
+                grep ",ERROR," /tmp/worker_analysis.csv | cut -d',' -f2,14,15 | while IFS=',' read file error_type error_msg; do
+                  echo "  - $file ($error_type): $(echo "$error_msg" | cut -c1-60)..."
+                done
+              else
+                echo "No errors found in worker logs"
+              fi
+              echo ""
+              
+              echo "=== Processing Statistics ==="
+              python3 << 'EOF'
+          import csv
+          
+          total_records = 0
+          total_rows_copied = 0
+          total_columns_indexed = 0
+          files_with_data = 0
+          
+          with open('/tmp/worker_analysis.csv', 'r') as f:
+              reader = csv.DictReader(f)
+              for row in reader:
+                  if row['status'] == 'SUCCESS':
+                      records = int(row['records_processed'])
+                      rows = int(row['rows_copied'])
+                      cols = int(row['columns_indexed'])
+                      
+                      if records > 0:
+                          total_records += records
+                          files_with_data += 1
+                      if rows > 0:
+                          total_rows_copied += rows
+                      if cols > 0:
+                          total_columns_indexed += cols
+          
+          print(f"Total records processed: {total_records:,}")
+          print(f"Total rows copied to datastore: {total_rows_copied:,}")
+          print(f"Total columns indexed: {total_columns_indexed}")
+          print(f"Files with data: {files_with_data}")
+          EOF
+              
+            fi
+            
+            echo ""
+            echo "=== Detailed Results ==="
+            cat /tmp/worker_analysis.csv
+            
+          else
+            echo "No analysis file generated"
+          fi
+          
+          echo ""
+          echo "Worker log analysis completed at: $(date)"
+
       - name: Upload test results as artifact
         uses: actions/upload-artifact@v4
         if: always()
