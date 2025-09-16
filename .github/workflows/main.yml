@@ -949,7 +949,16 @@ jobs:
           echo ""
           echo "Test completed at: $(date)"
 
-
+      - name: Upload test results as artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: datapusher-plus-test-results
+          path: |
+            /tmp/test_results.csv
+            /tmp/ckan_stdout.log
+            /tmp/ckan_worker.log
+          retention-days: 3
           
 
       - name: Generate Test Results Summary
