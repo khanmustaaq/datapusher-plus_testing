@@ -1055,10 +1055,10 @@ jobs:
             exit 0
           fi
           
-          # Count results by status
-          passed=$(grep -c ",SUCCESS,.*,complete,true," /tmp/test_results.csv || echo "0")
-          failed=$(grep -c ",FAILED," /tmp/test_results.csv || echo "0")
-          error_count=$(grep -c ",error," /tmp/test_results.csv || echo "0")
+          # Count results by status (fix the counting issue)
+          passed=$(grep -c ",SUCCESS,.*,complete,true," /tmp/test_results.csv 2>/dev/null || echo "0")
+          failed=$(tail -n +2 /tmp/test_results.csv | grep -v ",SUCCESS,.*,complete,true," | wc -l)
+          error_count=$(grep -c ",error," /tmp/test_results.csv 2>/dev/null || echo "0")
           
           # Calculate success rates
           if [ $total_tests -gt 0 ]; then
@@ -1073,10 +1073,15 @@ jobs:
             overall_success_rate=0
           fi
           
-          # Check if worker analysis is available
+          # Check if worker analysis is available and has meaningful data
           worker_analysis_available=false
+          performance_insights_available=false
           if [ -f /tmp/worker_analysis.csv ]; then
             worker_analysis_available=true
+            # Check if there are any successful jobs in worker analysis
+            if grep -q ",SUCCESS," /tmp/worker_analysis.csv 2>/dev/null; then
+              performance_insights_available=true
+            fi
           fi
           
           # Start building the summary
@@ -1097,22 +1102,25 @@ jobs:
             echo "| Success Rate (All Files) | ${overall_success_rate}% |"
             echo ""
             
-            # Add worker analysis insights if available
-            if [ "$worker_analysis_available" = true ]; then
+            # Add worker analysis insights only if there are meaningful insights
+            if [ "$performance_insights_available" = true ]; then
               echo "## Processing Performance Insights"
               echo ""
               echo "| Metric | Value |"
               echo "|--------|-------|"
               
-              # Get insights from Python script
-              python3 ${GITHUB_WORKSPACE}/tests/log_analyzer.py insights /tmp/worker_analysis.csv | while read line; do
-                if [[ "$line" == *": "* ]]; then
-                  metric=$(echo "$line" | cut -d':' -f1)
-                  value=$(echo "$line" | cut -d':' -f2- | sed 's/^ *//')
-                  echo "| $metric | $value |"
-                fi
-              done
-              echo ""
+              # Get insights from Python script and format them properly
+              insights_output=$(python3 ${GITHUB_WORKSPACE}/tests/log_analyzer.py insights /tmp/worker_analysis.csv 2>/dev/null || echo "")
+              if [ -n "$insights_output" ]; then
+                echo "$insights_output" | while IFS= read -r line; do
+                  if [[ "$line" == *": "* ]]; then
+                    metric=$(echo "$line" | cut -d':' -f1)
+                    value=$(echo "$line" | cut -d':' -f2- | sed 's/^ *//')
+                    echo "| $metric | $value |"
+                  fi
+                done
+                echo ""
+              fi
             fi
             
             # Show skipped files section if any exist
@@ -1144,7 +1152,7 @@ jobs:
                 echo "|-----------|---------------|-------------------|------------------|---------------|---------------------|---------------|"
               fi
               
-              # Process CSV and create table rows with enhanced worker analysis correlation
+              # Process CSV and create table rows with fixed worker analysis correlation
               tail -n +2 /tmp/test_results.csv | while IFS=',' read -r file_name upload_status resource_id datapusher_status datastore_active rows_imported processing_time error_message; do
                 # Clean up error message (remove quotes and truncate if too long)
                 clean_error=$(echo "$error_message" | sed 's/^"//;s/"$//' | cut -c1-40)
@@ -1169,19 +1177,21 @@ jobs:
                   *) ds_icon="❌" ;;
                 esac
                 
-                # Get worker analysis insights for this file if available
+                # Get worker analysis insights for this file if available (fix pipe issue)
                 if [ "$worker_analysis_available" = true ]; then
-                  worker_insight=$(python3 ${GITHUB_WORKSPACE}/tests/log_analyzer.py file-insight /tmp/worker_analysis.csv "$file_name")
-                  echo "| $file_name | $upload_icon $upload_status | $dp_icon $datapusher_status | $ds_icon $datastore_active | $rows_imported | $processing_time | $worker_insight | $clean_error |"
+                  worker_insight=$(python3 ${GITHUB_WORKSPACE}/tests/log_analyzer.py file-insight /tmp/worker_analysis.csv "$file_name" 2>/dev/null || echo "N/A")
+                  # Replace pipe characters with semicolons to avoid markdown table issues
+                  worker_insight_safe=$(echo "$worker_insight" | sed 's/|/;/g')
+                  echo "| $file_name | $upload_icon $upload_status | $dp_icon $datapusher_status | $ds_icon $datastore_active | $rows_imported | $processing_time | $worker_insight_safe | $clean_error |"
                 else
                   echo "| $file_name | $upload_icon $upload_status | $dp_icon $datapusher_status | $ds_icon $datastore_active | $rows_imported | $processing_time | $clean_error |"
                 fi
               done
               echo ""
               
-              # Add legend for worker analysis column
+              # Add legend for worker analysis column (update legend to reflect semicolon usage)
               if [ "$worker_analysis_available" = true ]; then
-                echo "**Worker Analysis Legend**: \`XrecordsYsec|DL:Xs|AN:Xs|CP:Xs\` where DL=Download, AN=Analysis, CP=Copy phases"
+                echo "**Worker Analysis Legend**: \`Xrecords;Ysec;DL:Xs;AN:Xs;CP:Xs\` where DL=Download, AN=Analysis, CP=Copy phases"
                 echo ""
               fi
             fi
