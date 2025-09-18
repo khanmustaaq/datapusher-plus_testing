@@ -1103,25 +1103,25 @@ jobs:
             echo ""
             
             # Add worker analysis insights only if there are meaningful insights
-            if [ "$performance_insights_available" = true ]; then
-              echo "## Processing Performance Insights"
-              echo ""
-              echo "| Metric | Value |"
-              echo "|--------|-------|"
+            # if [ "$performance_insights_available" = true ]; then
+            #  echo "## Processing Performance Insights"
+            #  echo ""
+            #  echo "| Metric | Value |"
+            #  echo "|--------|-------|"
               
               # Get insights from Python script and format them properly
-              insights_output=$(python3 ${GITHUB_WORKSPACE}/tests/log_analyzer.py insights /tmp/worker_analysis.csv 2>/dev/null || echo "")
-              if [ -n "$insights_output" ]; then
-                echo "$insights_output" | while IFS= read -r line; do
-                  if [[ "$line" == *": "* ]]; then
-                    metric=$(echo "$line" | cut -d':' -f1)
-                    value=$(echo "$line" | cut -d':' -f2- | sed 's/^ *//')
-                    echo "| $metric | $value |"
-                  fi
-                done
-                echo ""
-              fi
-            fi
+            #  insights_output=$(python3 ${GITHUB_WORKSPACE}/tests/log_analyzer.py insights /tmp/worker_analysis.csv 2>/dev/null || echo "")
+            #  if [ -n "$insights_output" ]; then
+            #    echo "$insights_output" | while IFS= read -r line; do
+            #      if [[ "$line" == *": "* ]]; then
+            #        metric=$(echo "$line" | cut -d':' -f1)
+            #        value=$(echo "$line" | cut -d':' -f2- | sed 's/^ *//')
+            #        echo "| $metric | $value |"
+            #      fi
+            #    done
+            #    echo ""
+            #  fi
+            #fi
             
             # Show skipped files section if any exist
             if [ $skipped_count -gt 0 ]; then
@@ -1196,12 +1196,6 @@ jobs:
               fi
             fi
             
-            echo "## Status Legend"
-            echo ""
-            echo "- ✅ Success/True/Complete"
-            echo "- ❌ Failed/False/Error" 
-            echo "- ⏳ Pending/Unknown"
-            echo ""
             
             # Add comprehensive analysis based on results
             if [ $total_tests -eq 0 ] && [ $skipped_count -gt 0 ]; then
@@ -1276,27 +1270,7 @@ jobs:
               fi
             fi
             
-            # Add troubleshooting section for failed cases
-            if [ $failed -gt 0 ] || [ $error_count -gt 0 ]; then
-              echo ""
-              echo "## Troubleshooting Tips"
-              echo ""
-              echo "**For upload failures:**"
-              echo "- Check CKAN API connectivity and authentication"
-              echo "- Verify dataset exists and user has permissions"
-              echo "- Check file accessibility via HTTP server"
-              echo ""
-              echo "**For DataPusher processing errors:**"
-              echo "- Check file format and data quality"
-              echo "- Verify DataPusher Plus configuration"
-              echo "- Check worker logs for detailed error messages"
-              echo "- Ensure qsv binary is properly installed"
-              echo ""
-              echo "**For DataStore activation issues:**"
-              echo "- Verify datastore extension is enabled"
-              echo "- Check database permissions"
-              echo "- Review DataPusher Plus processing logs"
-            fi
+    
             
             echo ""
             echo "---"
