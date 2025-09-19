@@ -588,7 +588,7 @@ jobs:
           echo "=== Testing DataPusher Plus Functionality - Local Repository Files ==="
           
           # Initialize results tracking
-          echo "file_name,upload_status,resource_id,datapusher_status,datastore_active,rows_imported,processing_time,error_message" > /tmp/test_results.csv
+          echo "timestamp,file_name,upload_status,resource_id,datapusher_status,datastore_active,rows_imported,processing_time,error_message" > /tmp/test_results.csv
           
           # Initialize skipped files tracking
           echo "file_name,reason_skipped" > /tmp/skipped_files.csv
@@ -864,7 +864,8 @@ jobs:
             processing_time=$((end_time - start_time))
             
             # Log results for this file
-            echo "$file_name,$upload_status,$resource_id,$datapusher_status,$datastore_active,$rows_imported,$processing_time,\"$error_message\"" >> /tmp/test_results.csv
+            timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+            echo "$timestamp,$file_name,$upload_status,$resource_id,$datapusher_status,$datastore_active,$rows_imported,$processing_time,\"$error_message\"" >> /tmp/test_results.csv
             
             # Update counters
             if [ "$upload_status" = "SUCCESS" ] && [ "$datapusher_status" = "complete" ] && [ "$datastore_active" = "true" ]; then
@@ -958,7 +959,7 @@ jobs:
           # Check if worker log exists
           if [ ! -f /tmp/ckan_worker.log ]; then
             echo "No worker log file found at /tmp/ckan_worker.log"
-            echo "job_id,file_name,status,total_time,download_time,analysis_time,copying_time,indexing_time,formulae_time,metadata_time,records_processed,rows_copied,columns_indexed,error_type,error_message" > /tmp/worker_analysis.csv
+            echo "timestamp,job_id,file_name,status,total_time,download_time,analysis_time,copying_time,indexing_time,formulae_time,metadata_time,records_processed,rows_copied,columns_indexed,error_type,error_message" > /tmp/worker_analysis.csv
             exit 0
           fi
           
@@ -1145,15 +1146,15 @@ jobs:
               
               # Enhanced table with worker insights if available
               if [ "$worker_analysis_available" = true ]; then
-                echo "| File Name | Upload Status | DataPusher Status | DataStore Active | Rows Imported | Processing Time (s) | Worker Analysis | Error Details |"
-                echo "|-----------|---------------|-------------------|------------------|---------------|---------------------|-----------------|---------------|"
+                echo "| Timestamp | File Name | Upload Status | DataPusher Status | DataStore Active | Rows Imported | Processing Time (s) | Worker Analysis | Error Details |"
+                echo "|-----------|-----------|---------------|-------------------|------------------|---------------|---------------------|-----------------|---------------|"
               else
-                echo "| File Name | Upload Status | DataPusher Status | DataStore Active | Rows Imported | Processing Time (s) | Error Message |"
-                echo "|-----------|---------------|-------------------|------------------|---------------|---------------------|---------------|"
+                echo "| Timestamp | File Name | Upload Status | DataPusher Status | DataStore Active | Rows Imported | Processing Time (s) | Error Message |"
+                echo "|-----------|-----------|---------------|-------------------|------------------|---------------|---------------------|-----------------|---------------|"
               fi
               
               # Process CSV and create table rows with fixed worker analysis correlation
-              tail -n +2 /tmp/test_results.csv | while IFS=',' read -r file_name upload_status resource_id datapusher_status datastore_active rows_imported processing_time error_message; do
+              tail -n +2 /tmp/test_results.csv | while IFS=',' read -r timestamp file_name upload_status resource_id datapusher_status datastore_active rows_imported processing_time error_message; do
                 # Clean up error message (remove quotes and truncate if too long)
                 clean_error=$(echo "$error_message" | sed 's/^"//;s/"$//' | cut -c1-40)
                 if [ ${#error_message} -gt 42 ]; then
@@ -1182,9 +1183,9 @@ jobs:
                   worker_insight=$(python3 ${GITHUB_WORKSPACE}/tests/log_analyzer.py file-insight /tmp/worker_analysis.csv "$file_name" 2>/dev/null || echo "N/A")
                   # Replace pipe characters with semicolons to avoid markdown table issues
                   worker_insight_safe=$(echo "$worker_insight" | sed 's/|/;/g')
-                  echo "| $file_name | $upload_icon $upload_status | $dp_icon $datapusher_status | $ds_icon $datastore_active | $rows_imported | $processing_time | $worker_insight_safe | $clean_error |"
+                  echo "| $timestamp | $file_name | $upload_icon $upload_status | $dp_icon $datapusher_status | $ds_icon $datastore_active | $rows_imported | $processing_time | $clean_error |"
                 else
-                  echo "| $file_name | $upload_icon $upload_status | $dp_icon $datapusher_status | $ds_icon $datastore_active | $rows_imported | $processing_time | $clean_error |"
+                  echo "| $timestamp | $file_name | $upload_icon $upload_status | $dp_icon $datapusher_status | $ds_icon $datastore_active | $rows_imported | $processing_time | $worker_insight_safe | $clean_error |"
                 fi
               done
               echo ""
