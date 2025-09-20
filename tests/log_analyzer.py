@@ -148,7 +148,7 @@ def parse_worker_logs(log_file_path):
 
 def write_worker_analysis(jobs, output_file):
     """Write job analysis to CSV file"""
-    fieldnames = ['job_id', 'file_name', 'status', 'total_time', 'download_time', 
+    fieldnames = ['timestamp', 'job_id', 'file_name', 'status', 'total_time', 'download_time', 
                   'analysis_time', 'copying_time', 'indexing_time', 'formulae_time', 
                   'metadata_time', 'records_processed', 'rows_copied', 'columns_indexed',
                   'error_type', 'error_message']
