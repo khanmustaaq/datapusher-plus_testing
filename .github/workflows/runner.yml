@@ -959,12 +959,13 @@ jobs:
           # Check if worker log exists
           if [ ! -f /tmp/ckan_worker.log ]; then
             echo "No worker log file found at /tmp/ckan_worker.log"
-            echo "timestamp,job_id,file_name,status,total_time,download_time,analysis_time,copying_time,indexing_time,formulae_time,metadata_time,records_processed,rows_copied,columns_indexed,error_type,error_message" > /tmp/worker_analysis.csv
+            # Create comprehensive header structure with all new fields
+            echo "timestamp,job_id,file_name,status,qsv_version,file_format,encoding,normalized,valid_csv,sorted,db_safe_headers,analysis,records,total_time,download_time,analysis_time,copying_time,indexing_time,formulae_time,metadata_time,rows_copied,columns_indexed,error_type,error_message" > /tmp/worker_analysis.csv
             exit 0
           fi
           
           echo "Worker log file size: $(du -h /tmp/ckan_worker.log | cut -f1)"
-          echo "Running Python log analyzer..."
+          echo "Running enhanced Python log analyzer..."
           
           # Run the Python script to analyze logs
           python3 ${GITHUB_WORKSPACE}/tests/log_analyzer.py analyze /tmp/ckan_worker.log /tmp/worker_analysis.csv
@@ -994,17 +995,61 @@ jobs:
               python3 ${GITHUB_WORKSPACE}/tests/log_analyzer.py insights /tmp/worker_analysis.csv
               echo ""
               
+              echo "=== Data Quality Analysis ==="
+              if [ $success_jobs -gt 0 ]; then
+                # Analyze QSV versions used
+                qsv_versions=$(tail -n +2 /tmp/worker_analysis.csv | grep ",SUCCESS," | cut -d',' -f5 | sort | uniq -c)
+                if [ -n "$qsv_versions" ]; then
+                  echo "QSV versions used:"
+                  echo "$qsv_versions" | while read count version; do
+                    echo "  Version $version: $count files"
+                  done
+                fi
+                
+                # Analyze file formats
+                formats=$(tail -n +2 /tmp/worker_analysis.csv | grep ",SUCCESS," | cut -d',' -f6 | sort | uniq -c)
+                if [ -n "$formats" ]; then
+                  echo "File formats processed:"
+                  echo "$formats" | while read count format; do
+                    echo "  $format: $count files"
+                  done
+                fi
+                
+                # Analyze encoding types
+                encodings=$(tail -n +2 /tmp/worker_analysis.csv | grep ",SUCCESS," | cut -d',' -f7 | sort | uniq -c)
+                if [ -n "$encodings" ]; then
+                  echo "Encoding types:"
+                  echo "$encodings" | while read count encoding; do
+                    echo "  $encoding: $count files"
+                  done
+                fi
+                
+                # Check for data quality issues
+                invalid_csv=$(tail -n +2 /tmp/worker_analysis.csv | grep ",SUCCESS," | grep ",FALSE," | wc -l)
+                unsorted_files=$(tail -n +2 /tmp/worker_analysis.csv | grep ",SUCCESS," | grep ",FALSE," | wc -l)
+                unsafe_headers=$(tail -n +2 /tmp/worker_analysis.csv | grep ",SUCCESS," | grep "unsafe headers" | wc -l)
+                
+                echo "Data quality issues:"
+                echo "  Invalid CSV files: $invalid_csv"
+                echo "  Unsorted files: $unsorted_files" 
+                echo "  Files with unsafe headers: $unsafe_headers"
+              fi
+              echo ""
+              
               echo "=== Error Analysis ==="
               if [ $error_jobs -gt 0 ]; then
                 echo "Error breakdown:"
-                grep ",ERROR," /tmp/worker_analysis.csv | cut -d',' -f14 | sort | uniq -c | while read count error_type; do
+                # Updated column position for error_type (now column 23)
+                tail -n +2 /tmp/worker_analysis.csv | grep ",ERROR," | cut -d',' -f23 | sort | uniq -c | while read count error_type; do
                   echo "  $error_type: $count occurrences"
                 done
                 echo ""
                 
-                echo "Failed files:"
-                grep ",ERROR," /tmp/worker_analysis.csv | cut -d',' -f2,14,15 | while IFS=',' read file error_type error_msg; do
-                  echo "  - $file ($error_type): $(echo "$error_msg" | cut -c1-60)..."
+                echo "Failed files with details:"
+                # Updated column positions for file_name (3), error_type (23), error_message (24)
+                tail -n +2 /tmp/worker_analysis.csv | grep ",ERROR," | cut -d',' -f3,23,24 | while IFS=',' read file error_type error_msg; do
+                  clean_error=$(echo "$error_msg" | sed 's/^"//;s/"$//' | cut -c1-80)
+                  echo "  - $file ($error_type): $clean_error"
                 done
               else
                 echo "No errors found in worker logs"
@@ -1012,7 +1057,26 @@ jobs:
             fi
             
             echo ""
+            echo "=== Comprehensive Analysis ==="
+            if [ $total_jobs -gt 0 ]; then
+              # Show sample of comprehensive data
+              echo "Sample job details (first 3 jobs):"
+              echo "Timestamp | Job ID | File | Status | QSV Ver | Format | Encoding | Valid CSV | Sorted | Records"
+              echo "----------|--------|------|--------|---------|--------|----------|-----------|--------|--------"
+              
+              tail -n +2 /tmp/worker_analysis.csv | head -3 | while IFS=',' read timestamp job_id file_name status qsv_version file_format encoding normalized valid_csv sorted db_safe_headers analysis records total_time download_time analysis_time copying_time indexing_time formulae_time metadata_time rows_copied columns_indexed error_type error_message; do
+                # Truncate long values for display
+                short_timestamp=$(echo "$timestamp" | cut -c1-19)
+                short_job_id=$(echo "$job_id" | cut -c1-8)
+                short_file=$(echo "$file_name" | cut -c1-12)
+                
+                echo "$short_timestamp | $short_job_id | $short_file | $status | $qsv_version | $file_format | $encoding | $valid_csv | $sorted | $records"
+              done
+            fi
+            
+            echo ""
             echo "=== Detailed Results ==="
+            echo "Full CSV contents:"
             cat /tmp/worker_analysis.csv
             
           else
