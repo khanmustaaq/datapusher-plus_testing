@@ -211,10 +211,10 @@ def write_worker_analysis(jobs, output_file):
                   'encoding', 'normalized', 'valid_csv', 'sorted', 'db_safe_headers', 'analysis',
                   'records', 'total_time', 'download_time', 'analysis_time', 'copying_time', 
                   'indexing_time', 'formulae_time', 'metadata_time', 'rows_copied', 'columns_indexed',
-                  'error_type', 'error_message']
+                  'error_type', 'error_message', 'data_quality_score', 'processing_efficiency']
     
     with open(output_file, 'w', newline='') as csvfile:
-        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames, extrasaction='ignore')
         writer.writeheader()
         writer.writerows(jobs)
 
@@ -596,6 +596,10 @@ def enhanced_parse_worker_logs(log_file_path):
         if job['status'] == 'SUCCESS':
             job['data_quality_score'] = calculate_data_quality_score(job)
             job['processing_efficiency'] = int(job['records']) / job['total_time'] if job['total_time'] > 0 else 0
+        else:
+            # Add default values for failed jobs
+            job['data_quality_score'] = 0
+            job['processing_efficiency'] = 0
     
     return jobs
 
