@@ -959,8 +959,8 @@ jobs:
           # Check if worker log exists
           if [ ! -f /tmp/ckan_worker.log ]; then
             echo "No worker log file found at /tmp/ckan_worker.log"
-            # Create comprehensive header structure with all new fields
-            echo "timestamp,job_id,file_name,status,qsv_version,file_format,encoding,normalized,valid_csv,sorted,db_safe_headers,analysis,records,total_time,download_time,analysis_time,copying_time,indexing_time,formulae_time,metadata_time,rows_copied,columns_indexed,error_type,error_message" > /tmp/worker_analysis.csv
+            # Create comprehensive header structure with all new fields including enhanced analytics
+            echo "timestamp,job_id,file_name,status,qsv_version,file_format,encoding,normalized,valid_csv,sorted,db_safe_headers,analysis,records,total_time,download_time,analysis_time,copying_time,indexing_time,formulae_time,metadata_time,rows_copied,columns_indexed,error_type,error_message,data_quality_score,processing_efficiency" > /tmp/worker_analysis.csv
             exit 0
           fi
           
@@ -994,6 +994,21 @@ jobs:
               echo "=== Performance Insights ==="
               python3 ${GITHUB_WORKSPACE}/tests/log_analyzer.py insights /tmp/worker_analysis.csv
               echo ""
+              
+              echo "=== Enhanced Analytics ==="
+              if [ $success_jobs -gt 0 ]; then
+                echo "Executive Summary:"
+                python3 ${GITHUB_WORKSPACE}/tests/log_analyzer.py executive-summary /tmp/worker_analysis.csv
+                echo ""
+                
+                echo "Business Metrics:"
+                python3 ${GITHUB_WORKSPACE}/tests/log_analyzer.py business-metrics /tmp/worker_analysis.csv
+                echo ""
+                
+                echo "Performance Anomalies:"
+                python3 ${GITHUB_WORKSPACE}/tests/log_analyzer.py anomalies /tmp/worker_analysis.csv
+                echo ""
+              fi
               
               echo "=== Data Quality Analysis ==="
               if [ $success_jobs -gt 0 ]; then
@@ -1033,6 +1048,24 @@ jobs:
                 echo "  Invalid CSV files: $invalid_csv"
                 echo "  Unsorted files: $unsorted_files" 
                 echo "  Files with unsafe headers: $unsafe_headers"
+                
+                # Show data quality scores (new field - column 25)
+                echo ""
+                echo "Data Quality Scores (0-100):"
+                tail -n +2 /tmp/worker_analysis.csv | grep ",SUCCESS," | cut -d',' -f3,25 | while IFS=',' read file_name quality_score; do
+                  if [ -n "$quality_score" ] && [ "$quality_score" != "0" ]; then
+                    echo "  $file_name: $quality_score"
+                  fi
+                done | head -5  # Show first 5
+                
+                # Show processing efficiency (new field - column 26)
+                echo ""
+                echo "Processing Efficiency (records/sec):"
+                tail -n +2 /tmp/worker_analysis.csv | grep ",SUCCESS," | cut -d',' -f3,26 | while IFS=',' read file_name efficiency; do
+                  if [ -n "$efficiency" ] && [ "$efficiency" != "0" ]; then
+                    printf "  %s: %.1f records/sec\n" "$file_name" "$efficiency" 2>/dev/null || echo "  $file_name: $efficiency records/sec"
+                  fi
+                done | head -5  # Show first 5
               fi
               echo ""
               
@@ -1059,20 +1092,32 @@ jobs:
             echo ""
             echo "=== Comprehensive Analysis ==="
             if [ $total_jobs -gt 0 ]; then
-              # Show sample of comprehensive data
+              # Show sample of comprehensive data including new fields
               echo "Sample job details (first 3 jobs):"
-              echo "Timestamp | Job ID | File | Status | QSV Ver | Format | Encoding | Valid CSV | Sorted | Records"
-              echo "----------|--------|------|--------|---------|--------|----------|-----------|--------|--------"
+              echo "Timestamp | Job ID | File | Status | QSV Ver | Format | Records | Quality Score | Efficiency"
+              echo "----------|--------|------|--------|---------|--------|---------|---------------|----------"
               
-              tail -n +2 /tmp/worker_analysis.csv | head -3 | while IFS=',' read timestamp job_id file_name status qsv_version file_format encoding normalized valid_csv sorted db_safe_headers analysis records total_time download_time analysis_time copying_time indexing_time formulae_time metadata_time rows_copied columns_indexed error_type error_message; do
+              tail -n +2 /tmp/worker_analysis.csv | head -3 | while IFS=',' read timestamp job_id file_name status qsv_version file_format encoding normalized valid_csv sorted db_safe_headers analysis records total_time download_time analysis_time copying_time indexing_time formulae_time metadata_time rows_copied columns_indexed error_type error_message data_quality_score processing_efficiency; do
                 # Truncate long values for display
                 short_timestamp=$(echo "$timestamp" | cut -c1-19)
                 short_job_id=$(echo "$job_id" | cut -c1-8)
                 short_file=$(echo "$file_name" | cut -c1-12)
                 
-                echo "$short_timestamp | $short_job_id | $short_file | $status | $qsv_version | $file_format | $encoding | $valid_csv | $sorted | $records"
+                echo "$short_timestamp | $short_job_id | $short_file | $status | $qsv_version | $file_format | $records | $data_quality_score | $processing_efficiency"
               done
             fi
+            
+            echo ""
+            echo "=== Additional Analysis Files ==="
+            # Check for additional JSON analysis files created by enhanced analyzer
+            for analysis_file in /tmp/performance_metrics.json /tmp/business_metrics.json /tmp/failure_analysis.json /tmp/predictive_insights.json /tmp/security_analysis.json /tmp/anomalies.json; do
+              if [ -f "$analysis_file" ]; then
+                echo "Generated: $(basename "$analysis_file")"
+                echo "Content preview:"
+                head -10 "$analysis_file" | sed 's/^/  /'
+                echo ""
+              fi
+            done
             
             echo ""
             echo "=== Detailed Results ==="
