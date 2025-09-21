@@ -1,4 +1,4 @@
-name: DataPusher+ Testing Quick Run
+name: DataPusher+ Testing Stress Run
 on:
   workflow_dispatch:
 # Workflow-level defaults
@@ -594,12 +594,12 @@ jobs:
           echo "file_name,reason_skipped" > /tmp/skipped_files.csv
           
           # Set base path for test files
-          TEST_FILES_DIR="${GITHUB_WORKSPACE}/tests/quick"
+          TEST_FILES_DIR="${GITHUB_WORKSPACE}/tests/static"
           
           # Check if test files directory exists
           if [ ! -d "$TEST_FILES_DIR" ]; then
             echo "ERROR: Test files directory not found: $TEST_FILES_DIR"
-            echo "Please ensure the tests/quick directory exists in your repository"
+            echo "Please ensure the tests/static directory exists in your repository"
             exit 1
           fi
           
@@ -608,8 +608,8 @@ jobs:
           find "$TEST_FILES_DIR" -type f | head -10
           echo ""
           
-          # Get complete inventory of all files in tests/quick
-          echo "Complete inventory of files in tests/quick:"
+          # Get complete inventory of all files in tests/static
+          echo "Complete inventory of files in tests/static:"
           find "$TEST_FILES_DIR" -type f -name "*" | while read filepath; do
             filename=$(basename "$filepath")
             filesize=$(du -h "$filepath" | cut -f1)
@@ -1311,19 +1311,19 @@ jobs:
             if [ $total_tests -eq 0 ] && [ $skipped_count -gt 0 ]; then
               echo "## Result: No Testable Files ⚠️"
               echo ""
-              echo "All files in the tests/quick directory were skipped."
+              echo "All files in the tests/static directory were skipped."
               echo ""
               echo "**Common reasons for skipped files:**"
               echo "- Unsupported file formats (only .csv, .tsv, .xlsx, .json, .geojson, .txt supported)"
               echo "- Files not accessible via HTTP server"
               echo "- Hidden files or system files"
               echo ""
-              echo "**Recommendation:** Add supported data files to tests/quick directory."
+              echo "**Recommendation:** Add supported data files to tests/static directory."
               
             elif [ $total_tests -eq 0 ]; then
               echo "## Result: No Files Found ❌"
               echo ""
-              echo "No files found in tests/quick directory to test."
+              echo "No files found in tests/static directory to test."
               
             elif [ $passed -eq $total_tests ]; then
               echo "## Result: All Tested Files Passed! 🎉"
@@ -1386,8 +1386,8 @@ jobs:
             echo "---"
             echo "_Generated on $(date)_"
             echo ""
-            echo "**Files Location:** \`tests/quick/\`"
-            echo "**Total Directory Size:** $(du -sh ${GITHUB_WORKSPACE}/tests/quick 2>/dev/null | cut -f1 || echo 'Unknown')"
+            echo "**Files Location:** \`tests/static/\`"
+            echo "**Total Directory Size:** $(du -sh ${GITHUB_WORKSPACE}/tests/static 2>/dev/null | cut -f1 || echo 'Unknown')"
             
           } > /tmp/markdown_summary.md
           
