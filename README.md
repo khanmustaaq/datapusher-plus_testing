@@ -1,4 +1,5 @@
 [![DataPusher+ Testing Stress Run](https://github.com/dathere/datapusher-plus_testing/actions/workflows/runner.yml/badge.svg)](https://github.com/dathere/datapusher-plus_testing/actions/workflows/runner.yml)
+[![DataPusher+ Testing Smoke Run](https://github.com/dathere/datapusher-plus_testing/actions/workflows/main.yml/badge.svg)](https://github.com/dathere/datapusher-plus_testing/actions/workflows/main.yml)
 # DataPusher+ testing
 Automated testing suite for DataPusher+ extension functionality. This repository provides a complete pipeline using GitHub Actions to validate data processing workflows across multiple file formats including CSV, TSV, Excel, and JSON files.
 
