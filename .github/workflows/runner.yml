@@ -975,7 +975,7 @@ jobs:
           
           # Generate summary for GitHub Actions
           if [ -f /tmp/worker_analysis.csv ]; then
-            echo "# 📊 DataPusher Plus Worker Analysis" >> $GITHUB_STEP_SUMMARY
+            echo "# DataPusher Plus Worker Analysis" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             
             # Count by status
@@ -1000,7 +1000,7 @@ jobs:
               status_badge="🔴 **CRITICAL**"
             fi
             
-            echo "## 🎯 Summary" >> $GITHUB_STEP_SUMMARY
+            echo "## Summary" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "| 📈 **System Status** | $status_badge |" >> $GITHUB_STEP_SUMMARY
             echo "|---------------------|----------------|" >> $GITHUB_STEP_SUMMARY
@@ -1012,39 +1012,13 @@ jobs:
             echo "" >> $GITHUB_STEP_SUMMARY
             
             if [ $total_jobs -gt 0 ]; then
-              # Add job status chart
-              echo "## 📊 Job Status Distribution" >> $GITHUB_STEP_SUMMARY
-              echo "" >> $GITHUB_STEP_SUMMARY
-              echo '```mermaid' >> $GITHUB_STEP_SUMMARY
-              echo 'pie title Job Processing Results' >> $GITHUB_STEP_SUMMARY
-              echo "    \"Success\" : $success_jobs" >> $GITHUB_STEP_SUMMARY
-              echo "    \"Errors\" : $error_jobs" >> $GITHUB_STEP_SUMMARY
-              if [ $incomplete_jobs -gt 0 ]; then
-                echo "    \"Incomplete\" : $incomplete_jobs" >> $GITHUB_STEP_SUMMARY
-              fi
-              echo '```' >> $GITHUB_STEP_SUMMARY
-              echo "" >> $GITHUB_STEP_SUMMARY
-              
-              # Performance Anomalies
-              echo "## ⚡ Performance Anomalies" >> $GITHUB_STEP_SUMMARY
-              echo "" >> $GITHUB_STEP_SUMMARY
-              anomalies_output=$(python3 ${GITHUB_WORKSPACE}/tests/log_analyzer.py anomalies /tmp/worker_analysis.csv 2>/dev/null || echo "")
-              if [ -z "$anomalies_output" ]; then
-                echo "✅ **No performance anomalies detected** - All jobs processed within expected timeframes" >> $GITHUB_STEP_SUMMARY
-              else
-                echo "⚠️ **Performance issues detected:**" >> $GITHUB_STEP_SUMMARY
-                echo "" >> $GITHUB_STEP_SUMMARY
-                echo "$anomalies_output" | sed 's/ANOMALY: /🐌 **Slow Processing**: /' >> $GITHUB_STEP_SUMMARY
-              fi
-              echo "" >> $GITHUB_STEP_SUMMARY
-              
               # File formats and encoding analysis
-              echo "## 📁 File Analysis" >> $GITHUB_STEP_SUMMARY
+              echo "## File Analysis" >> $GITHUB_STEP_SUMMARY
               echo "" >> $GITHUB_STEP_SUMMARY
               
               if [ $success_jobs -gt 0 ]; then
                 # File formats processed
-                echo "### 📄 File Formats Processed" >> $GITHUB_STEP_SUMMARY
+                echo "### File Formats Processed" >> $GITHUB_STEP_SUMMARY
                 echo "" >> $GITHUB_STEP_SUMMARY
                 formats=$(tail -n +2 /tmp/worker_analysis.csv | grep ",SUCCESS," | cut -d',' -f6 | sort | uniq -c)
                 if [ -n "$formats" ]; then
@@ -1068,7 +1042,7 @@ jobs:
                 echo "" >> $GITHUB_STEP_SUMMARY
                 
                 # Encoding types
-                echo "### 🔤 Encoding Distribution" >> $GITHUB_STEP_SUMMARY
+                echo "### Encoding Distribution" >> $GITHUB_STEP_SUMMARY
                 echo "" >> $GITHUB_STEP_SUMMARY
                 encodings=$(tail -n +2 /tmp/worker_analysis.csv | grep ",SUCCESS," | cut -d',' -f7 | sort | uniq -c)
                 if [ -n "$encodings" ]; then
@@ -1093,7 +1067,7 @@ jobs:
               fi
               
               # Data quality issues
-              echo "## 🔍 Data Quality Assessment" >> $GITHUB_STEP_SUMMARY
+              echo "## Data Quality Assessment" >> $GITHUB_STEP_SUMMARY
               echo "" >> $GITHUB_STEP_SUMMARY
               if [ $success_jobs -gt 0 ]; then
                 invalid_csv=$(tail -n +2 /tmp/worker_analysis.csv | grep ",SUCCESS," | grep ",FALSE," | wc -l)
@@ -1115,72 +1089,13 @@ jobs:
                 echo "| **Header Safety** | $safe_headers | $unsafe_headers | $header_status |" >> $GITHUB_STEP_SUMMARY
                 
                 echo "" >> $GITHUB_STEP_SUMMARY
-                
-                # Quality chart
-                echo "### 📊 Data Quality Overview" >> $GITHUB_STEP_SUMMARY
-                echo "" >> $GITHUB_STEP_SUMMARY
-                echo '```mermaid' >> $GITHUB_STEP_SUMMARY
-                echo 'graph LR' >> $GITHUB_STEP_SUMMARY
-                echo '    A[Total Files] --> B[Valid CSV: '$valid_csv']' >> $GITHUB_STEP_SUMMARY
-                echo '    A --> C[Invalid CSV: '$invalid_csv']' >> $GITHUB_STEP_SUMMARY
-                echo '    A --> D[Safe Headers: '$safe_headers']' >> $GITHUB_STEP_SUMMARY
-                echo '    A --> E[Unsafe Headers: '$unsafe_headers']' >> $GITHUB_STEP_SUMMARY
-                echo '    B --> F[✅ Processing Success]' >> $GITHUB_STEP_SUMMARY
-                echo '    C --> G[⚠️ Needs Attention]' >> $GITHUB_STEP_SUMMARY
-                echo '    D --> F' >> $GITHUB_STEP_SUMMARY
-                echo '    E --> G' >> $GITHUB_STEP_SUMMARY
-                echo '```' >> $GITHUB_STEP_SUMMARY
-                echo "" >> $GITHUB_STEP_SUMMARY
               else
                 echo "❌ **No successful files to analyze**" >> $GITHUB_STEP_SUMMARY
                 echo "" >> $GITHUB_STEP_SUMMARY
               fi
               
-              # Error Analysis
-              echo "## 🚨 Error Analysis" >> $GITHUB_STEP_SUMMARY
-              echo "" >> $GITHUB_STEP_SUMMARY
-              if [ $error_jobs -gt 0 ]; then
-                echo "### 📊 Error Distribution" >> $GITHUB_STEP_SUMMARY
-                echo "" >> $GITHUB_STEP_SUMMARY
-                
-                # Create error breakdown table
-                echo "| Error Type | Count | Impact | Description |" >> $GITHUB_STEP_SUMMARY
-                echo "|------------|-------|--------|-------------|" >> $GITHUB_STEP_SUMMARY
-                tail -n +2 /tmp/worker_analysis.csv | grep ",ERROR," | cut -d',' -f23 | sort | uniq -c | while read count error_type; do
-                  impact_level=$([ $count -ge 5 ] && echo "🔴 High" || ([ $count -ge 3 ] && echo "🟡 Medium" || echo "🟠 Low"))
-                  case "$error_type" in
-                    "CORRUPTED_EXCEL") desc="Excel files with corrupted ZIP structure" ;;
-                    "QSV_ERROR") desc="CSV processing/validation failures" ;;
-                    "DATAPUSHER_ERROR") desc="General DataPusher processing errors" ;;
-                    "INVALID_URL") desc="Inaccessible or invalid file URLs" ;;
-                    *) desc="Other processing errors" ;;
-                  esac
-                  echo "| **$error_type** | $count | $impact_level | $desc |" >> $GITHUB_STEP_SUMMARY
-                done
-                echo "" >> $GITHUB_STEP_SUMMARY
-                
-                echo "### 📋 Failed Files Details" >> $GITHUB_STEP_SUMMARY
-                echo "" >> $GITHUB_STEP_SUMMARY
-                echo "<details>" >> $GITHUB_STEP_SUMMARY
-                echo "<summary>Click to expand error details</summary>" >> $GITHUB_STEP_SUMMARY
-                echo "" >> $GITHUB_STEP_SUMMARY
-                echo "| File | Error Type | Error Message |" >> $GITHUB_STEP_SUMMARY
-                echo "|------|------------|---------------|" >> $GITHUB_STEP_SUMMARY
-                tail -n +2 /tmp/worker_analysis.csv | grep ",ERROR," | cut -d',' -f3,23,24 | while IFS=',' read file error_type error_msg; do
-                  clean_error=$(echo "$error_msg" | sed 's/^"//;s/"$//' | cut -c1-60)
-                  clean_file=$(echo "$file" | sed 's/\.\.\.//' | cut -c1-20)
-                  echo "| $clean_file | $error_type | $clean_error |" >> $GITHUB_STEP_SUMMARY
-                done
-                echo "" >> $GITHUB_STEP_SUMMARY
-                echo "</details>" >> $GITHUB_STEP_SUMMARY
-                echo "" >> $GITHUB_STEP_SUMMARY
-              else
-                echo "🎉 **No errors found in worker logs** - All processed jobs completed successfully!" >> $GITHUB_STEP_SUMMARY
-                echo "" >> $GITHUB_STEP_SUMMARY
-              fi
-              
               # Complete summary table
-              echo "## 📋 Complete Job Analysis" >> $GITHUB_STEP_SUMMARY
+              echo "## Complete Job Analysis" >> $GITHUB_STEP_SUMMARY
               echo "" >> $GITHUB_STEP_SUMMARY
               echo "<details>" >> $GITHUB_STEP_SUMMARY
               echo "<summary>Click to view detailed job analysis table</summary>" >> $GITHUB_STEP_SUMMARY
@@ -1218,33 +1133,70 @@ jobs:
               echo "" >> $GITHUB_STEP_SUMMARY
               echo "</details>" >> $GITHUB_STEP_SUMMARY
               echo "" >> $GITHUB_STEP_SUMMARY
+              
+              # Error Analysis
+              echo "## Error Analysis" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              if [ $error_jobs -gt 0 ]; then
+                echo "### Error Distribution" >> $GITHUB_STEP_SUMMARY
+                echo "" >> $GITHUB_STEP_SUMMARY
+                
+                # Create error breakdown table
+                echo "| Error Type | Count | Impact | Description |" >> $GITHUB_STEP_SUMMARY
+                echo "|------------|-------|--------|-------------|" >> $GITHUB_STEP_SUMMARY
+                tail -n +2 /tmp/worker_analysis.csv | grep ",ERROR," | cut -d',' -f23 | sort | uniq -c | while read count error_type; do
+                  impact_level=$([ $count -ge 5 ] && echo "🔴 High" || ([ $count -ge 3 ] && echo "🟡 Medium" || echo "🟠 Low"))
+                  case "$error_type" in
+                    "CORRUPTED_EXCEL") desc="Excel files with corrupted ZIP structure" ;;
+                    "QSV_ERROR") desc="CSV processing/validation failures" ;;
+                    "DATAPUSHER_ERROR") desc="General DataPusher processing errors" ;;
+                    "INVALID_URL") desc="Inaccessible or invalid file URLs" ;;
+                    *) desc="Other processing errors" ;;
+                  esac
+                  echo "| **$error_type** | $count | $impact_level | $desc |" >> $GITHUB_STEP_SUMMARY
+                done
+                echo "" >> $GITHUB_STEP_SUMMARY
+                
+                echo "### Failed Files Details" >> $GITHUB_STEP_SUMMARY
+                echo "" >> $GITHUB_STEP_SUMMARY
+                echo "<details>" >> $GITHUB_STEP_SUMMARY
+                echo "<summary>Click to expand error details</summary>" >> $GITHUB_STEP_SUMMARY
+                echo "" >> $GITHUB_STEP_SUMMARY
+                echo "| File | Error Type | Error Message |" >> $GITHUB_STEP_SUMMARY
+                echo "|------|------------|---------------|" >> $GITHUB_STEP_SUMMARY
+                tail -n +2 /tmp/worker_analysis.csv | grep ",ERROR," | cut -d',' -f3,23,24 | while IFS=',' read file error_type error_msg; do
+                  clean_error=$(echo "$error_msg" | sed 's/^"//;s/"$//' | cut -c1-60)
+                  clean_file=$(echo "$file" | sed 's/\.\.\.//' | cut -c1-20)
+                  echo "| $clean_file | $error_type | $clean_error |" >> $GITHUB_STEP_SUMMARY
+                done
+                echo "" >> $GITHUB_STEP_SUMMARY
+                echo "</details>" >> $GITHUB_STEP_SUMMARY
+                echo "" >> $GITHUB_STEP_SUMMARY
+              else
+                echo "✅ **No errors found in worker logs** - All processed jobs completed successfully!" >> $GITHUB_STEP_SUMMARY
+                echo "" >> $GITHUB_STEP_SUMMARY
+              fi
+              
+              # Performance Anomalies
+              echo "## Performance Anomalies" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              anomalies_output=$(python3 ${GITHUB_WORKSPACE}/tests/log_analyzer.py anomalies /tmp/worker_analysis.csv 2>/dev/null || echo "")
+              if [ -z "$anomalies_output" ]; then
+                echo "✅ **No performance anomalies detected** - All jobs processed within expected timeframes" >> $GITHUB_STEP_SUMMARY
+              else
+                echo "⚠️ **Performance issues detected:**" >> $GITHUB_STEP_SUMMARY
+                echo "" >> $GITHUB_STEP_SUMMARY
+                echo "$anomalies_output" | sed 's/ANOMALY: /🐌 **Slow Processing**: /' >> $GITHUB_STEP_SUMMARY
+              fi
+              echo "" >> $GITHUB_STEP_SUMMARY
             fi
-            
-            # Add recommendations based on analysis
-            echo "## 💡 Recommendations" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            if [ $success_rate -ge 95 ]; then
-              echo "🎉 **Excellent Performance** - System is operating optimally" >> $GITHUB_STEP_SUMMARY
-              echo "- Continue monitoring for any emerging issues" >> $GITHUB_STEP_SUMMARY
-              echo "- Consider optimizing successful workflows further" >> $GITHUB_STEP_SUMMARY
-            elif [ $success_rate -ge 80 ]; then
-              echo "⚠️ **Good Performance with Minor Issues**" >> $GITHUB_STEP_SUMMARY
-              echo "- Investigate and resolve error patterns" >> $GITHUB_STEP_SUMMARY
-              echo "- Focus on improving data quality validation" >> $GITHUB_STEP_SUMMARY
-            else
-              echo "🔴 **Critical Issues Detected**" >> $GITHUB_STEP_SUMMARY
-              echo "- Immediate investigation required for error patterns" >> $GITHUB_STEP_SUMMARY
-              echo "- Review file format compatibility" >> $GITHUB_STEP_SUMMARY
-              echo "- Implement enhanced error handling" >> $GITHUB_STEP_SUMMARY
-            fi
-            echo "" >> $GITHUB_STEP_SUMMARY
             
             # Completion timestamp
             echo "---" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "📅 **Analysis completed:** $(date '+%A, %B %d, %Y at %I:%M %p %Z')" >> $GITHUB_STEP_SUMMARY
+            echo "**Analysis completed:** $(date '+%A, %B %d, %Y at %I:%M %p %Z')" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "🔧 **Generated by:** DataPusher Plus Enhanced Log Analyzer" >> $GITHUB_STEP_SUMMARY
+            echo "**Generated by:** DataPusher Plus Enhanced Log Analyzer" >> $GITHUB_STEP_SUMMARY
             
           else
             echo "# 📊 DataPusher Plus Worker Analysis" >> $GITHUB_STEP_SUMMARY
