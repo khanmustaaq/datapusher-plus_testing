@@ -1,6 +1,6 @@
 [![DataPusher+ Testing Stress Run](https://github.com/dathere/datapusher-plus_testing/actions/workflows/runner.yml/badge.svg)](https://github.com/dathere/datapusher-plus_testing/actions/workflows/runner.yml)
 [![DataPusher+ Testing Smoke Run](https://github.com/dathere/datapusher-plus_testing/actions/workflows/main.yml/badge.svg)](https://github.com/dathere/datapusher-plus_testing/actions/workflows/main.yml)
-# DataPusher+ testing
+# DataPusher+ Testing Suite
 Automated testing suite for DataPusher+ extension functionality. This repository provides a complete pipeline using GitHub Actions to validate data processing workflows across multiple file formats including CSV, TSV, Excel, and JSON files.
 
 Key Features:
@@ -13,3 +13,22 @@ Key Features:
 
 Includes error handling, performance metrics, and detailed logging for troubleshooting extension issues.
 
+### Testing with Your Own Files
+
+Want to validate your own datasets? Drop them into the test/custom directory and trigger the GitHub Action “DataPusher+ Testing Custom Run.”
+When the run completes, open the workflow’s Summary page and download the ZIP artifact named datapusher-plus-test-results.
+Inside you’ll find:
+```
+.
+├── ckan_stdout.log
+├── ckan_worker.log
+├── test_results.csv
+└── worker_analysis.csv
+```
+
+File descriptions
+
+`ckan_stdout.log` – Full CKAN web application stdout/stderr stream, including HTTP requests, API calls, and runtime warnings.
+`ckan_worker.log` – Detailed DataPusher+ worker trace covering each ingestion step, validation, and indexing operation.
+`test_results.csv` – Consolidated pass/fail matrix and timing stats for every dataset processed during the run.
+`worker_analysis.csv` – Per-resource performance breakdown with download, analysis, and indexing timings for deeper diagnostics.
