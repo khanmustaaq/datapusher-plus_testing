@@ -30,8 +30,8 @@ File descriptions
 
 `ckan_stdout.log` – Full CKAN web application stdout/stderr stream, including HTTP requests, API calls, and runtime warnings.
 
-`ckan_worker.log` – Detailed DataPusher+ worker trace covering each ingestion step, validation, and indexing operation.
+`ckan_worker.log` – Detailed DataPusher+ worker trace covering each ingestion step, validation, and indexing operation. This is where you'll find datapusher-plus logs
 
 `test_results.csv` – Consolidated pass/fail matrix and timing stats for every dataset processed during the run.
 
-`worker_analysis.csv` – Per-resource performance breakdown with download, analysis, and indexing timings for deeper diagnostics.
+`worker_analysis.csv` – Per-resource performance breakdown with download, analysis, and indexing timings for deeper diagnostics. 
