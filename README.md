@@ -15,7 +15,7 @@ Includes error handling, performance metrics, and detailed logging for troublesh
 
 ### Testing with Your Own Files
 
-Want to validate your own datasets? Drop them into the test/custom directory and trigger the GitHub Action “DataPusher+ Testing Custom Run.”
+Validate your own datasets by uploading them into the test/custom directory and trigger the GitHub Action “DataPusher+ Testing Custom Run.”
 When the run completes, open the workflow’s Summary page and download the ZIP artifact named datapusher-plus-test-results.
 Inside you’ll find:
 ```
