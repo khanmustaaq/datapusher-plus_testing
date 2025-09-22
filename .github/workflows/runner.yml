@@ -1152,60 +1152,12 @@ jobs:
                   echo ""
                 fi
                 
-                # Data Quality Assessment
-                echo "## Data Quality Assessment"
-                echo ""
-                if [ $success_jobs -gt 0 ]; then
-                  invalid_csv=$(tail -n +2 /tmp/worker_analysis.csv | grep ",SUCCESS," | grep ",FALSE," | wc -l)
-                  unsafe_headers=$(tail -n +2 /tmp/worker_analysis.csv | grep ",SUCCESS," | grep "unsafe headers" | wc -l)
-                  valid_csv=$((success_jobs - invalid_csv))
-                  safe_headers=$((success_jobs - unsafe_headers))
-                  
-                  echo "| Quality Metric | ✅ Good | ⚠️ Issues | Status |"
-                  echo "|----------------|---------|-----------|--------|"
-                  
-                  # CSV validity
-                  csv_health=$((valid_csv * 100 / success_jobs))
-                  csv_status=$([ $csv_health -ge 90 ] && echo "🟢 Excellent" || ([ $csv_health -ge 70 ] && echo "🟡 Good" || echo "🔴 Poor"))
-                  echo "| **CSV Validity** | $valid_csv | $invalid_csv | $csv_status |"
-                  
-                  # Header safety
-                  header_health=$((safe_headers * 100 / success_jobs))
-                  header_status=$([ $header_health -ge 90 ] && echo "🟢 Excellent" || ([ $header_health -ge 70 ] && echo "🟡 Good" || echo "🔴 Poor"))
-                  echo "| **Header Safety** | $safe_headers | $unsafe_headers | $header_status |"
-                  
-                  echo ""
-                else
-                  echo "❌ **No successful files to analyze**"
-                  echo ""
-                fi
-                
                 # Error Analysis
                 echo "## Error Analysis"
                 echo ""
                 if [ $error_jobs -gt 0 ]; then
-                  echo "### Error Distribution"
-                  echo ""
-                  
-                  # Create error breakdown table
-                  echo "| Error Type | Count | Impact | Description |"
-                  echo "|------------|-------|--------|-------------|"
-                  tail -n +2 /tmp/worker_analysis.csv | grep ",ERROR," | cut -d',' -f23 | sort | uniq -c | while read count error_type; do
-                    impact_level=$([ $count -ge 5 ] && echo "🔴 High" || ([ $count -ge 3 ] && echo "🟡 Medium" || echo "🟠 Low"))
-                    case "$error_type" in
-                      "CORRUPTED_EXCEL") desc="Excel files with corrupted ZIP structure" ;;
-                      "QSV_ERROR") desc="CSV processing/validation failures" ;;
-                      "DATAPUSHER_ERROR") desc="General DataPusher processing errors" ;;
-                      "INVALID_URL") desc="Inaccessible or invalid file URLs" ;;
-                      *) desc="Other processing errors" ;;
-                    esac
-                    echo "| **$error_type** | $count | $impact_level | $desc |"
-                  done
-                  echo ""
-                  
                   echo "### Failed Files Details"
                   echo ""
-                  echo "<details>"
                   echo "<summary>Click to expand error details</summary>"
                   echo ""
                   echo "| File | Error Type | Error Message |"
@@ -1215,8 +1167,6 @@ jobs:
                     clean_file=$(echo "$file" | sed 's/\.\.\.//' | cut -c1-20)
                     echo "| $clean_file | $error_type | $clean_error |"
                   done
-                  echo ""
-                  echo "</details>"
                   echo ""
                 else
                   echo "✅ **No errors found in worker logs** - All processed jobs completed successfully!"
@@ -1240,7 +1190,7 @@ jobs:
             
             # Add comprehensive analysis based on results (keep original logic)
             if [ $total_tests -eq 0 ] && [ $skipped_count -gt 0 ]; then
-              echo "## Result: No Testable Files ⚠️"
+              echo "##  No Testable Files ⚠️"
               echo ""
               echo "All files in the test directory were skipped."
               echo ""
@@ -1252,12 +1202,12 @@ jobs:
               echo "**Recommendation:** Add supported data files to test directory."
               
             elif [ $total_tests -eq 0 ]; then
-              echo "## Result: No Files Found ❌"
+              echo "##  No Files Found ❌"
               echo ""
               echo "No files found in test directory to test."
               
             elif [ $passed -eq $total_tests ]; then
-              echo "## Result: All Tested Files Passed! 🎉"
+              echo "##  All Tested Files Passed! 🎉"
               echo ""
               echo "DataPusher Plus is working correctly with all testable files."
               if [ $skipped_count -gt 0 ]; then
@@ -1270,27 +1220,6 @@ jobs:
               echo ""
               echo "DataPusher Plus works with some files but has issues with others."
               echo ""
-              echo "### Files with Issues:"
-              # Show failed files
-              if [ -f /tmp/test_results.csv ]; then
-                tail -n +2 /tmp/test_results.csv | while IFS=',' read -r timestamp file_name upload_status resource_id datapusher_status datastore_active rows_imported processing_time error_message; do
-                  if [ "$upload_status" != "SUCCESS" ] || [ "$datapusher_status" != "complete" ] || [ "$datastore_active" != "true" ]; then
-                    # Use the full error message from test_results.csv without truncation
-                    full_error=$(echo "$error_message" | sed 's/^"//;s/"$//')
-                    echo "- **$file_name**: $full_error"
-                  fi
-                done
-              fi
-              
-              if [ $skipped_count -gt 0 ]; then
-                echo ""
-                echo "### Additionally Skipped:"
-                if [ -f /tmp/skipped_files.csv ]; then
-                  tail -n +2 /tmp/skipped_files.csv | while IFS=',' read -r file_name reason; do
-                    echo "- **$file_name**: $reason"
-                  done
-                fi
-              fi
               
             else
               echo "## Result: All Tested Files Failed ❌"
