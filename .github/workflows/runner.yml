@@ -1064,25 +1064,22 @@ jobs:
               if [ $total_jobs -gt 0 ]; then
                 echo "## Complete Job Analysis"
                 echo ""
-                echo "<details>"
-                echo "<summary>Click to view detailed job analysis table</summary>"
-                echo ""
                 echo "| # | File Name | Status | Records | Columns | Time (s) | Valid CSV | Headers Safe | Error Type | Quality Score |"
                 echo "|---|-----------|--------|---------|---------|----------|-----------|--------------|------------|---------------|"
                 
                 counter=1
                 tail -n +2 /tmp/worker_analysis.csv | while IFS=',' read timestamp job_id file_name status qsv_version file_format encoding normalized valid_csv sorted db_safe_headers analysis records total_time download_time analysis_time copying_time indexing_time formulae_time metadata_time rows_copied columns_indexed error_type error_message data_quality_score processing_efficiency; do
-                  # Clean and truncate values for table display
-                  clean_file_name=$(echo "$file_name" | sed 's/\.\.\.//' | cut -c1-20)
-                  clean_error_type=$(echo "$error_type" | cut -c1-15)
-                  clean_headers=$(echo "$db_safe_headers" | cut -c1-15)
+                  # Don't truncate values - allow full content with horizontal scroll
+                  full_file_name=$(echo "$file_name" | sed 's/\.\.\.//')
+                  full_error_type="$error_type"
+                  full_headers="$db_safe_headers"
                   
                   # Handle empty values
                   [ -z "$records" ] && records="0"
                   [ -z "$columns_indexed" ] && columns_indexed="0"
                   [ -z "$total_time" ] && total_time="0"
                   [ -z "$data_quality_score" ] && data_quality_score="-"
-                  [ -z "$clean_error_type" ] && clean_error_type="-"
+                  [ -z "$full_error_type" ] && full_error_type="-"
                   
                   # Add status emoji
                   case "$status" in
@@ -1092,11 +1089,9 @@ jobs:
                     *) status_display="❓ $status" ;;
                   esac
                   
-                  echo "| $counter | $clean_file_name | $status_display | $records | $columns_indexed | $total_time | $valid_csv | $clean_headers | $clean_error_type | $data_quality_score |"
+                  echo "| $counter | $full_file_name | $status_display | $records | $columns_indexed | $total_time | $valid_csv | $full_headers | $full_error_type | $data_quality_score |"
                   counter=$((counter + 1))
                 done
-                echo ""
-                echo "</details>"
                 echo ""
                 
                 # Add worker analysis sections
@@ -1280,8 +1275,9 @@ jobs:
               if [ -f /tmp/test_results.csv ]; then
                 tail -n +2 /tmp/test_results.csv | while IFS=',' read -r timestamp file_name upload_status resource_id datapusher_status datastore_active rows_imported processing_time error_message; do
                   if [ "$upload_status" != "SUCCESS" ] || [ "$datapusher_status" != "complete" ] || [ "$datastore_active" != "true" ]; then
-                    clean_error=$(echo "$error_message" | sed 's/^"//;s/"$//')
-                    echo "- **$file_name**: $clean_error"
+                    # Use the full error message from test_results.csv without truncation
+                    full_error=$(echo "$error_message" | sed 's/^"//;s/"$//')
+                    echo "- **$file_name**: $full_error"
                   fi
                 done
               fi
