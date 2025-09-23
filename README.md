@@ -5,7 +5,7 @@ Automated testing suite for DataPusher+ extension functionality. This repository
 
 Key Features:
 - Full CKAN 2.11 environment setup with PostgreSQL, Solr, and Redis services
-- Multi-format file testing with both remote URLs and local repository files
+- Multi-format file testing 
 - Real-time DataPusher job monitoring and status validation
 - Automated datastore activation and data import verification
 - Detailed test reporting with markdown summaries and downloadable artifacts
