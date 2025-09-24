@@ -16,7 +16,7 @@ Includes error handling, performance metrics, and detailed logging for troublesh
 ### Steps to Testing with Your Own Files
 
 1. Fork the repository
-2. Add testing files in the test/custom files directory
+2. Add testing files in the tests/custom files directory
 3. Head over to actions and run the `DataPusher+ Testing Run` workflow. Enter the configurables like the branch of the datapusher-plus, and the directory of the test files (default directory: quick)
 4. Once the work flow gets completed, refer the artifacts in the Summary of the workflow
 
