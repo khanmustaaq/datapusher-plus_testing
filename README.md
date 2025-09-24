@@ -13,10 +13,13 @@ Key Features:
 
 Includes error handling, performance metrics, and detailed logging for troubleshooting extension issues.
 
-### Testing with Your Own Files
+### Testing with Your Own Files: Steps
 
-Validate your own datasets by uploading them into the test/custom directory and trigger the GitHub Action “DataPusher+ Testing Custom Run.”
-When the run completes, open the workflow’s Summary page and download the ZIP artifact named datapusher-plus-test-results.
+1. Fork the repository
+2. Add testing files in the test/custom files directory
+3. Head over to actions and run the `DataPusher+ Testing Run` workflow. Enter the configurables like the branch of the datapusher-plus, and the directory of the test files (default directory: quick)
+4. Once the work flow gets completed, refer the artifacts in the Summary of the workflow
+
 Inside you’ll find:
 ```
 .
@@ -26,7 +29,7 @@ Inside you’ll find:
 └── worker_analysis.csv
 ```
 
-File descriptions
+#### File descriptions
 
 `ckan_stdout.log` – Full CKAN web application stdout/stderr stream, including HTTP requests, API calls, and runtime warnings.
 
