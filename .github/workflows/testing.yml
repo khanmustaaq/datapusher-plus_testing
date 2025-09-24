@@ -1,4 +1,4 @@
-name: DataPusher+ Testing Smoke Run
+name: DataPusher+ Testing Run
 on:
   workflow_dispatch:
      inputs:
