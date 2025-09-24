@@ -13,7 +13,7 @@ Key Features:
 
 Includes error handling, performance metrics, and detailed logging for troubleshooting extension issues.
 
-### : Steps to Testing with Your Own Files
+### Steps to Testing with Your Own Files
 
 1. Fork the repository
 2. Add testing files in the test/custom files directory
