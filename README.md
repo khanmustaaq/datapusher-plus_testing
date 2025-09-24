@@ -3,8 +3,11 @@
 # DataPusher+ Testing Suite
 Automated testing suite for DataPusher+ extension functionality. This repository provides a complete pipeline using GitHub Actions to validate data processing workflows across multiple file formats including CSV, TSV, Excel, and JSON files.
 
-Key Features:
-- Full CKAN 2.11 environment setup with PostgreSQL, Solr, and Redis services
+## Requirements:
+- CKAN 2.11
+- Datapusher+ 2+
+
+## Key Features:
 - Multi-format file testing 
 - Real-time DataPusher job monitoring and status validation
 - Automated datastore activation and data import verification
@@ -13,7 +16,7 @@ Key Features:
 
 Includes error handling, performance metrics, and detailed logging for troubleshooting extension issues.
 
-### Steps to Testing with Your Own Files
+## Steps to Testing with Your Own Files
 
 1. Fork the repository
 2. Add testing files in the tests/custom files directory
@@ -29,7 +32,7 @@ Inside you’ll find:
 └── worker_analysis.csv
 ```
 
-#### File descriptions
+### File descriptions
 
 `ckan_stdout.log` – Full CKAN web application stdout/stderr stream, including HTTP requests, API calls, and runtime warnings.
 
