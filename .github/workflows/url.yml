@@ -595,7 +595,7 @@ jobs:
 
 
           
-- name: Test DataPusher Plus functionality - Remote Files (CSV Input)
+      - name: Test DataPusher Plus functionality - Remote Files (CSV Input)
         run: |
           set -eu
           echo "=== Testing DataPusher Plus Functionality - Remote Files from CSV ==="
